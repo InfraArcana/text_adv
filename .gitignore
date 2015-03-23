@@ -1,28 +1,26 @@
+# Code::Blocks stuff
+*.layout
+*.layout.orig
+*.depend
+
+# Cppcheck
+CppCheckResults.xml
+
+# Directories
+target/
+obj/
+test/bin
+test/obj
+
+*.layout.orig
+*.depend
+
+# Backup files
+*~
+
+# Patches
+*.patch
+
 # Compiled Object files
-*.slo
-*.lo
 *.o
 *.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
