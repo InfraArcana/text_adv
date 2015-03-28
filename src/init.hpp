@@ -6,8 +6,8 @@
 
 #ifdef NDEBUG
 
-#define TRACE(args)
-#define TRACE_VERBOSE(args)
+#define TRACE(...)
+#define TRACE_VERBOSE(...)
 #define TRACE_FUNC_BEGIN
 #define TRACE_FUNC_BEGIN_VERBOSE
 #define TRACE_FUNC_END
@@ -28,9 +28,6 @@
 #ifndef NDEBUG
 bool trace_util_func(const char* file, int line, const char* func, const char* fmt, ...);
 #endif // NDEBUG
-
-//#define STR_HELPER(x) #x
-//#define STR(x) STR_HELPER(x)
 
 // Print specific trace message
 #define TRACE(...) if (TRACE_LVL > 0) \

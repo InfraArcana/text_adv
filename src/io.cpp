@@ -187,7 +187,7 @@ void draw_cursor(const std::string& text, const Pos& text_pos, const size_t curs
                        text_pos.y + LINE_H - Y_PADDING);
 }
 
-void draw_text(const std::string& str, const Pos& pos, const Clr& clr, const Clr& bg_clr)
+void draw_text(const std::string& str, const Pos& pos, const Clr& clr)
 {
     if (is_inited_)
     {
@@ -266,6 +266,12 @@ void get_cmd(std::string& cmd_txt)
 
     while (!is_done)
     {
+        // Sleep for a moment so the process doesn't claim all CPU time
+        sleep(1);
+
+        // Get current input
+        const bool DID_POLL_EVENT = SDL_PollEvent(&sdl_event_);
+
         // Draw
         clear_screen();
 
@@ -279,19 +285,14 @@ void get_cmd(std::string& cmd_txt)
 
         const Uint32 CURSOR_PERIOD = 1000;
 
-        if ((SDL_GetTicks() % CURSOR_PERIOD) > (CURSOR_PERIOD / 2))
+        if (sdl_event_.type == SDL_KEYDOWN || (SDL_GetTicks() % CURSOR_PERIOD) > (CURSOR_PERIOD / 2))
         {
-            draw_cursor(render_text, text_pos, prompt_text.size() + cursor_pos);
+            draw_cursor(render_text + ' ', text_pos, prompt_text.size() + cursor_pos);
         }
 
         update_screen();
 
-        // Sleep for a moment so the process doesn't claim all CPU time
-        sleep(1);
-
-        // Get input
-        const bool DID_POLL_EVENT = SDL_PollEvent(&sdl_event_);
-
+        // Handle input
         if (!DID_POLL_EVENT)
         {
             continue;
@@ -342,6 +343,10 @@ void get_cmd(std::string& cmd_txt)
                 continue;
             }
 
+            Uint16 mod = SDL_GetModState();
+
+            const bool IS_CTRL_HELD = mod & KMOD_CTRL;
+
             if (sdl_key >= SDLK_F1 && sdl_key <= SDLK_F9)
             {
                 continue;
@@ -357,12 +362,70 @@ void get_cmd(std::string& cmd_txt)
                     TRACE("Command sent by user: %s", cmd_txt.c_str());
                     break;
 
+                case SDLK_ESCAPE:
+                    cmd_txt.clear();
+                    cursor_pos = 0;
+                    break;
+
                 case SDLK_LEFT:
-                    --cursor_pos;
+                    if (cursor_pos > 0)
+                    {
+                        if (IS_CTRL_HELD)
+                        {
+                            bool is_seek_done = false;
+
+                            while (!is_seek_done)
+                            {
+                                --cursor_pos;
+
+                                if (cursor_pos == 0)
+                                {
+                                    is_seek_done = true;
+                                }
+                                else // Cursor positon not zero
+                                {
+                                    const bool CUR_IS_SPACE = cmd_txt[cursor_pos]       == ' ';
+                                    const bool NXT_IS_SPACE = cmd_txt[cursor_pos - 1]   == ' ';
+
+                                    is_seek_done = !CUR_IS_SPACE && NXT_IS_SPACE;
+                                }
+                            }
+                        }
+                        else // Ctrl not held
+                        {
+                            --cursor_pos;
+                        }
+                    }
                     break;
 
                 case SDLK_RIGHT:
-                    ++cursor_pos;
+                    if (cursor_pos < cmd_txt.size())
+                    {
+                        if (IS_CTRL_HELD)
+                        {
+                            bool is_seek_done = false;
+                            while (!is_seek_done)
+                            {
+                                ++cursor_pos;
+
+                                if (cursor_pos == cmd_txt.size())
+                                {
+                                    is_seek_done = true;
+                                }
+                                else // Cursor positon not at the right end
+                                {
+                                    const bool CUR_IS_SPACE = cmd_txt[cursor_pos]       == ' ';
+                                    const bool PRV_IS_SPACE = cmd_txt[cursor_pos - 1]   == ' ';
+
+                                    is_seek_done = CUR_IS_SPACE && !PRV_IS_SPACE;
+                                }
+                            }
+                        }
+                        else // Ctrl not held
+                        {
+                            ++cursor_pos;
+                        }
+                    }
                     break;
 
                 case SDLK_HOME:
@@ -371,6 +434,21 @@ void get_cmd(std::string& cmd_txt)
 
                 case SDLK_END:
                     cursor_pos = cmd_txt.size();
+                    break;
+
+                case SDLK_BACKSPACE:
+                    if (!cmd_txt.empty() && cursor_pos > 0)
+                    {
+                        cmd_txt.erase(begin(cmd_txt) + cursor_pos - 1);
+                        --cursor_pos;
+                    }
+                    break;
+
+                case SDLK_DELETE:
+                    if (cursor_pos < cmd_txt.size())
+                    {
+                        cmd_txt.erase(begin(cmd_txt) + cursor_pos);
+                    }
                     break;
 
                 default:
