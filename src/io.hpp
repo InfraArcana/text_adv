@@ -7,6 +7,8 @@
 
 #include "cmn_types.hpp"
 
+enum Allow_wrap_text {no, yes};
+
 namespace io
 {
 
@@ -17,13 +19,15 @@ void update_screen();
 
 void clear_screen();
 
-void get_cmd(std::string& out);
+void get_cmd(std::string& out, const std::string& msg);
 
 void sleep(const Uint32 DURATION);
 
-void draw_cursor(const std::string& text, const Pos& text_pos, const size_t cursor_idx);
+Rect draw_text(const std::string& str, const Pos& pos, const Clr& clr,
+               Vertical_dir dir = Vertical_dir::down,
+               Allow_wrap_text allow_wrap = Allow_wrap_text::no);
 
-void draw_text(const std::string& str, const Pos& pos, const Clr& clr);
+//void draw_text(const std::string& str, const Pos& pos, const Clr& clr);
 
 // int draw_text_centered(const std::string& str, const Panel panel, const Pos& pos,
 //                        const Clr& clr, const Clr& bg_clr = clr_black,

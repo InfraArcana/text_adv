@@ -1,5 +1,7 @@
 #include "io.hpp"
 
+#include <vector>
+
 #include <SDL_ttf.h>
 
 #include "init.hpp"
@@ -16,7 +18,12 @@ SDL_Window*     sdl_window_         = nullptr;
 SDL_Renderer*   sdl_renderer_       = nullptr;
 SDL_Texture*    sdl_screen_texture_ = nullptr;
 TTF_Font*       font_               = nullptr;
+int             font_h_             = 0;
 SDL_Event       sdl_event_;
+
+std::vector<std::string> msg_history_;
+
+std::string prev_cmd_ = "";
 
 void load_font()
 {
@@ -47,6 +54,69 @@ void set_render_clr(const Clr& clr)
     SDL_SetRenderDrawColor(sdl_renderer_, clr.r, clr.g, clr.b, 255);
 }
 
+void draw_line(const Rect& r, const Clr& clr = clr_black)
+{
+    if (!is_inited_)
+    {
+        return;
+    }
+
+    set_render_clr(clr);
+
+    SDL_RenderDrawLine(sdl_renderer_, r.p0.x, r.p0.y, r.p1.x, r.p1.y);
+}
+
+void draw_cursor(const std::string& text, const Pos& cmd_text_pos, const size_t cursor_idx)
+{
+    if (!is_inited_)
+    {
+        return;
+    }
+
+    assert(cursor_idx <= text.size());
+
+    int cursor_x = cmd_text_pos.x;
+
+    for (size_t i = 0; i < cursor_idx; ++i)
+    {
+        int advance = 0;
+        TTF_GlyphMetrics(font_, text[i], nullptr, nullptr, nullptr, nullptr, &advance);
+        cursor_x += advance;
+    }
+
+    const int Y_PADDING = font_h_ / 10;
+
+    draw_line({cursor_x, cmd_text_pos.y + Y_PADDING,
+               cursor_x, cmd_text_pos.y + font_h_ - Y_PADDING
+              });
+}
+
+bool is_inside_window(const Pos& p)
+{
+    if (!is_inited_)
+    {
+        return false;
+    }
+
+    Pos window_dims;
+    SDL_GetWindowSize(sdl_window_, &window_dims.x, &window_dims.y);
+
+    return p >= 0 && p < window_dims;
+}
+
+bool is_inside_window(const Rect& r)
+{
+    if (!is_inited_)
+    {
+        return false;
+    }
+
+    Pos window_dims;
+    SDL_GetWindowSize(sdl_window_, &window_dims.x, &window_dims.y);
+
+    return r.p0 >= 0 && r.p1 < window_dims;
+}
+
 } // Namespace
 
 void init()
@@ -66,18 +136,23 @@ void init()
         assert(false);
     }
 
+    load_font();
+
+    font_h_ = TTF_FontLineSkip(font_);
+
     TRACE("Setting up rendering window");
 
     const std::string title = "Text Adventure " + game_version_str;
 
-    const int SCR_W = 640; // config::get_screen_px_w();
-    const int SCR_H = 480; // config::get_screen_px_h();
+    const int SCR_W     = 640;
+    const int NR_LINES  = 20;
+    const int SCR_H     = font_h_ * NR_LINES;
 
     sdl_window_ = SDL_CreateWindow(title.c_str(),
                                    SDL_WINDOWPOS_UNDEFINED,
                                    SDL_WINDOWPOS_UNDEFINED,
                                    SCR_W, SCR_H,
-                                   SDL_WINDOW_SHOWN);
+                                   SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
 
     if (!sdl_window_)
     {
@@ -104,8 +179,6 @@ void init()
         assert(false);
     }
 
-    load_font();
-
     is_inited_ = true;
 
     TRACE_FUNC_END;
@@ -114,6 +187,12 @@ void init()
 void cleanup()
 {
     TRACE_FUNC_BEGIN;
+
+    font_h_ = 0;
+
+    msg_history_.clear();
+
+    prev_cmd_ = "";
 
     cleanup_font();
 
@@ -161,51 +240,86 @@ void clear_screen()
     }
 }
 
-void draw_cursor(const std::string& text, const Pos& text_pos, const size_t cursor_idx)
+Rect draw_text(const std::string& str, const Pos& pos, const Clr& clr, Vertical_dir dir, Allow_wrap_text allow_wrap)
 {
-    assert(cursor_idx <= text.size());
-
-    set_render_clr(clr_black);
-
-    int cursor_x = text_pos.x;
-
-    for (size_t i = 0; i < cursor_idx; ++i)
+    if (!is_inited_)
     {
-        int advance = 0;
-        TTF_GlyphMetrics(font_, text[i], nullptr, nullptr, nullptr, nullptr, &advance);
-        cursor_x += advance;
+        return Rect();
     }
 
-    const int LINE_H = TTF_FontLineSkip(font_);
+    assert(!str.empty());
 
-    const int Y_PADDING = LINE_H / 10;
+    int window_w, window_h;
+    SDL_GetWindowSize(sdl_window_, &window_w, &window_h);
 
-    SDL_RenderDrawLine(sdl_renderer_,
-                       cursor_x,
-                       text_pos.y + Y_PADDING,
-                       cursor_x,
-                       text_pos.y + LINE_H - Y_PADDING);
-}
+    SDL_Surface* font_srf = nullptr;
 
-void draw_text(const std::string& str, const Pos& pos, const Clr& clr)
-{
-    if (is_inited_)
+    if (allow_wrap == Allow_wrap_text::yes)
     {
-        if (str.empty())
-        {
-            return;
-        }
-
-        SDL_Surface* font_srf       = TTF_RenderText_Blended(font_, str.c_str(), clr);
-        SDL_Texture* font_texture   = SDL_CreateTextureFromSurface(sdl_renderer_, font_srf);
-
-        SDL_Rect sdl_dst_rect {pos.x, pos.y, font_srf->w, font_srf->h};
-
-        SDL_FreeSurface(font_srf);
-
-        SDL_RenderCopy(sdl_renderer_, font_texture, nullptr, &sdl_dst_rect);
+        font_srf = TTF_RenderText_Blended_Wrapped(font_, str.c_str(), clr, window_w);
     }
+    else // Wrap not allowed
+    {
+        font_srf = TTF_RenderText_Blended(font_, str.c_str(), clr);
+    }
+
+    assert(font_srf);
+
+    SDL_Rect sdl_dst_rect = {pos.x, pos.y, font_srf->w, font_srf->h};
+
+    if (dir == Vertical_dir::up)
+    {
+        // Write above the given position
+        sdl_dst_rect.y = pos.y - sdl_dst_rect.h + 1;
+    }
+
+    Rect ret_area(sdl_dst_rect.x,
+                  sdl_dst_rect.y,
+                  sdl_dst_rect.x + sdl_dst_rect.w - 1,
+                  sdl_dst_rect.y + sdl_dst_rect.h - 1);
+
+    SDL_Texture* font_texture = SDL_CreateTextureFromSurface(sdl_renderer_, font_srf);
+
+    SDL_RenderCopy(sdl_renderer_, font_texture, nullptr, &sdl_dst_rect);
+
+    SDL_FreeSurface(font_srf);
+
+    SDL_DestroyTexture(font_texture);
+
+    return ret_area;
 }
+
+//Rect draw_text_above(const std::string& str, const Pos& pos, const Clr& clr)
+//{
+//    if (!is_inited_)
+//    {
+//        return Rect();
+//    }
+//
+//    assert(!str.empty());
+//
+//    int window_w = 0;
+//    SDL_GetWindowSize(sdl_window_, &window_w, nullptr);
+//
+//    SDL_Surface* font_srf       = TTF_RenderText_Blended_Wrapped(font_, str.c_str(), clr, window_w);
+//    SDL_Texture* font_texture   = SDL_CreateTextureFromSurface(sdl_renderer_, font_srf);
+//
+//    SDL_Rect sdl_dst_rect {pos.x, pos.y - font_srf->h + 1, font_srf->w, font_srf->h};
+//
+//    SDL_FreeSurface(font_srf);
+//
+//    if (sdl_dst_rect.y < 0)
+//    {
+//        return Rect(-1, -1, -1, -1);
+//    }
+//
+//    SDL_RenderCopy(sdl_renderer_, font_texture, nullptr, &sdl_dst_rect);
+//
+//    return Rect(sdl_dst_rect.x,
+//                sdl_dst_rect.y,
+//                sdl_dst_rect.x + sdl_dst_rect.w - 1,
+//                sdl_dst_rect.y + sdl_dst_rect.y - 1);
+//}
 
 // int draw_text_centered(const string& str, const Panel panel, const Pos& pos,
 //                       const Clr& clr, const Clr& bg_clr,
@@ -249,14 +363,29 @@ void draw_text(const std::string& str, const Pos& pos, const Clr& clr)
 //    return X_POS_LEFT;
 // }
 
-void get_cmd(std::string& cmd_txt)
+void get_cmd(std::string& out, const std::string& msg)
 {
     if (!is_inited_)
     {
         return;
     }
 
-    cmd_txt = "";
+    assert(!msg.empty());
+
+    msg_history_.push_back(msg);
+
+    const size_t CULL_MSG_HISTORY_AT_N_MSGS = 160;
+    const size_t NR_MSGS_TO_KEEP_AFTER_CULL = 80;
+
+    if (msg_history_.size() >= CULL_MSG_HISTORY_AT_N_MSGS)
+    {
+        TRACE("Culling message history (Keeping %d messages)", NR_MSGS_TO_KEEP_AFTER_CULL);
+
+        const size_t NR_MSGS_TO_ERASE = CULL_MSG_HISTORY_AT_N_MSGS - NR_MSGS_TO_KEEP_AFTER_CULL;
+        msg_history_.erase(begin(msg_history_), begin(msg_history_) + NR_MSGS_TO_ERASE - 1);
+    }
+
+    out = "";
 
     size_t cursor_pos = 0;
 
@@ -266,28 +395,61 @@ void get_cmd(std::string& cmd_txt)
 
     while (!is_done)
     {
-        // Sleep for a moment so the process doesn't claim all CPU time
-        sleep(1);
-
         // Get current input
         const bool DID_POLL_EVENT = SDL_PollEvent(&sdl_event_);
+
+        if (!DID_POLL_EVENT)
+        {
+            // Sleep for a moment so the process doesn't claim all CPU time
+            sleep(1);
+        }
 
         // Draw
         clear_screen();
 
-        const Pos text_pos(1, 1);
+        int window_w, window_h;
+        SDL_GetWindowSize(sdl_window_, &window_w, &window_h);
 
-        const std::string prompt_text = "> ";
+//        const int INFO_SEPARATOR_LINE_Y = font_h_ + 1;
+//
+//        draw_line({0, INFO_SEPARATOR_LINE_Y, window_w, INFO_SEPARATOR_LINE_Y});
 
-        const std::string render_text = prompt_text + cmd_txt;
+        Pos text_pos(0, window_h - 1);
 
-        draw_text(render_text, text_pos, clr_black);
+        const std::string prompt_str = ">";
+
+        const std::string cmd_render_str = prompt_str + out;
+
+        Rect msg_rect = draw_text(cmd_render_str, text_pos, clr_black, Vertical_dir::up, Allow_wrap_text::no);
+
+//        const int SEPARATOR_LINE_Y = msg_rect.p0.y - 1;
+//
+//        draw_line({0, SEPARATOR_LINE_Y, window_w, SEPARATOR_LINE_Y});
 
         const Uint32 CURSOR_PERIOD = 1000;
 
         if (sdl_event_.type == SDL_KEYDOWN || (SDL_GetTicks() % CURSOR_PERIOD) > (CURSOR_PERIOD / 2))
         {
-            draw_cursor(render_text + ' ', text_pos, prompt_text.size() + cursor_pos);
+            draw_cursor(cmd_render_str + ' ', msg_rect.p0, prompt_str.size() + cursor_pos);
+        }
+
+        for (auto it = msg_history_.rbegin(); it != msg_history_.rend(); ++it)
+        {
+            const std::string cur_msg = *it;
+
+            text_pos.y = msg_rect.p0.y - 1;
+
+            if (cur_msg[0] != '>')
+            {
+                text_pos.y -= font_h_;
+            }
+
+            msg_rect = draw_text(*it, text_pos, clr_black, Vertical_dir::up, Allow_wrap_text::yes);
+
+            if (msg_rect.p0.y < 0)
+            {
+                break;
+            }
         }
 
         update_screen();
@@ -317,7 +479,7 @@ void get_cmd(std::string& cmd_txt)
         break;
 
         case SDL_QUIT:
-            cmd_txt = "";
+            out = "exit";
             is_done = true;
             break;
 
@@ -358,12 +520,22 @@ void get_cmd(std::string& cmd_txt)
                 case SDLK_RETURN:
                 case SDLK_RETURN2:
                 case SDLK_KP_ENTER:
-                    is_done = true;
-                    TRACE("Command sent by user: %s", cmd_txt.c_str());
+                    if (out.empty())
+                    {
+                        out = prev_cmd_;
+                        cursor_pos = out.size();
+                    }
+                    else // A command is entered
+                    {
+                        prev_cmd_ = out;
+                        is_done = true;
+                        TRACE("Command sent by user: %s", out.c_str());
+                        msg_history_.push_back(cmd_render_str);
+                    }
                     break;
 
                 case SDLK_ESCAPE:
-                    cmd_txt.clear();
+                    out.clear();
                     cursor_pos = 0;
                     break;
 
@@ -384,8 +556,8 @@ void get_cmd(std::string& cmd_txt)
                                 }
                                 else // Cursor positon not zero
                                 {
-                                    const bool CUR_IS_SPACE = cmd_txt[cursor_pos]       == ' ';
-                                    const bool NXT_IS_SPACE = cmd_txt[cursor_pos - 1]   == ' ';
+                                    const bool CUR_IS_SPACE = out[cursor_pos]       == ' ';
+                                    const bool NXT_IS_SPACE = out[cursor_pos - 1]   == ' ';
 
                                     is_seek_done = !CUR_IS_SPACE && NXT_IS_SPACE;
                                 }
@@ -399,7 +571,7 @@ void get_cmd(std::string& cmd_txt)
                     break;
 
                 case SDLK_RIGHT:
-                    if (cursor_pos < cmd_txt.size())
+                    if (cursor_pos < out.size())
                     {
                         if (IS_CTRL_HELD)
                         {
@@ -408,14 +580,14 @@ void get_cmd(std::string& cmd_txt)
                             {
                                 ++cursor_pos;
 
-                                if (cursor_pos == cmd_txt.size())
+                                if (cursor_pos == out.size())
                                 {
                                     is_seek_done = true;
                                 }
                                 else // Cursor positon not at the right end
                                 {
-                                    const bool CUR_IS_SPACE = cmd_txt[cursor_pos]       == ' ';
-                                    const bool PRV_IS_SPACE = cmd_txt[cursor_pos - 1]   == ' ';
+                                    const bool CUR_IS_SPACE = out[cursor_pos]       == ' ';
+                                    const bool PRV_IS_SPACE = out[cursor_pos - 1]   == ' ';
 
                                     is_seek_done = CUR_IS_SPACE && !PRV_IS_SPACE;
                                 }
@@ -433,21 +605,29 @@ void get_cmd(std::string& cmd_txt)
                     break;
 
                 case SDLK_END:
-                    cursor_pos = cmd_txt.size();
+                    cursor_pos = out.size();
                     break;
 
                 case SDLK_BACKSPACE:
-                    if (!cmd_txt.empty() && cursor_pos > 0)
+                    if (!out.empty() && cursor_pos > 0)
                     {
-                        cmd_txt.erase(begin(cmd_txt) + cursor_pos - 1);
+                        out.erase(begin(out) + cursor_pos - 1);
                         --cursor_pos;
                     }
                     break;
 
                 case SDLK_DELETE:
-                    if (cursor_pos < cmd_txt.size())
+                    if (cursor_pos < out.size())
                     {
-                        cmd_txt.erase(begin(cmd_txt) + cursor_pos);
+                        out.erase(begin(out) + cursor_pos);
+                    }
+                    break;
+
+                case SDLK_c:
+                    if (IS_CTRL_HELD)
+                    {
+                        out = "";
+                        cursor_pos = 0;
                     }
                     break;
 
@@ -459,7 +639,7 @@ void get_cmd(std::string& cmd_txt)
         break;
 
         case SDL_TEXTINPUT:
-            cmd_txt.insert(cursor_pos, sdl_event_.text.text);
+            out.insert(cursor_pos, sdl_event_.text.text);
             ++cursor_pos;
             break;
 
@@ -474,20 +654,22 @@ void get_cmd(std::string& cmd_txt)
 
 void sleep(const Uint32 DURATION)
 {
-    if (is_inited_)
+    if (!is_inited_)
     {
-        if (DURATION == 1)
-        {
-            SDL_Delay(DURATION);
-        }
-        else
-        {
-            const Uint32 WAIT_UNTIL = SDL_GetTicks() + DURATION;
+        return;
+    }
 
-            while (SDL_GetTicks() < WAIT_UNTIL)
-            {
-                SDL_PumpEvents();
-            }
+    if (DURATION == 1)
+    {
+        SDL_Delay(DURATION);
+    }
+    else // Duration > 1
+    {
+        const Uint32 WAIT_UNTIL = SDL_GetTicks() + DURATION;
+
+        while (SDL_GetTicks() < WAIT_UNTIL)
+        {
+            SDL_PumpEvents();
         }
     }
 }

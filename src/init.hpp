@@ -26,7 +26,7 @@
 //-----------------------------------------------------------------------------
 
 #ifndef NDEBUG
-bool trace_util_func(const char* file, int line, const char* func, const char* fmt, ...);
+void trace_util_func(const char* file, int line, const char* func, const char* fmt, ...);
 #endif // NDEBUG
 
 // Print specific trace message

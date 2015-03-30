@@ -6,7 +6,7 @@
 #include "io.hpp"
 
 #ifndef NDEBUG
-bool trace_util_func(const char* file, int line, const char* func, const char* fmt, ...)
+void trace_util_func(const char* file, int line, const char* func, const char* fmt, ...)
 {
     char msg_buffer[1000];
     va_list argptr;

@@ -1,8 +1,5 @@
 #include "init.hpp"
-
-#include <string>
-
-#include "io.hpp"
+#include "game.hpp"
 
 #ifdef _WIN32
 #undef main
@@ -20,9 +17,7 @@ int main(int argc, char* argv[])
 
     init::init_session();
 
-    // TODO: Game goes here...
-    std::string cmd;
-    io::get_cmd(cmd);
+    game::run();
 
     init::cleanup_session();
 

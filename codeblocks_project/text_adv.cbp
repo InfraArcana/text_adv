@@ -77,6 +77,8 @@
 		<Unit filename="../src/cmn_data.hpp" />
 		<Unit filename="../src/cmn_types.hpp" />
 		<Unit filename="../src/colors.hpp" />
+		<Unit filename="../src/game.cpp" />
+		<Unit filename="../src/game.hpp" />
 		<Unit filename="../src/init.cpp" />
 		<Unit filename="../src/init.hpp" />
 		<Unit filename="../src/io.cpp" />
