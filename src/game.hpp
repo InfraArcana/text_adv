@@ -3,8 +3,12 @@
 
 namespace game {
 
+void init();
+
+void cleanup();
+
 void run();
 
-}
+} // game
 
 #endif // GAME_H

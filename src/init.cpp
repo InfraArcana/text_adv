@@ -4,6 +4,8 @@
 #include <stdio.h>
 
 #include "io.hpp"
+#include "game.hpp"
+#include "map.hpp"
 
 #ifndef NDEBUG
 void trace_util_func(const char* file, int line, const char* func, const char* fmt, ...)
@@ -39,14 +41,16 @@ void cleanup_io()
 void init_game()
 {
     TRACE_FUNC_BEGIN;
-
+    map::init();
+    game::init();
     TRACE_FUNC_END;
 }
 
 void cleanup_game()
 {
     TRACE_FUNC_BEGIN;
-
+    game::cleanup();
+    map::cleanup();
     TRACE_FUNC_END;
 }
 

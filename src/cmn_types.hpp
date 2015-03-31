@@ -1,6 +1,8 @@
 #ifndef CMN_TYPES_H
 #define CMN_TYPES_H
 
+#include <string>
+
 #include "colors.hpp"
 
 struct Clr_str
