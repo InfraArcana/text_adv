@@ -1,5 +1,6 @@
 #include "utils.hpp"
 
+//#include <regex>
 #include <algorithm>
 #include <stdio.h>
 #include <assert.h>
@@ -8,6 +9,39 @@
 
 namespace utils
 {
+
+//std::vector<std::string> split_to_words(const std::string& str)
+//{
+//    std::regex re("\\s+");
+//    return {std::sregex_token_iterator(str.begin(), str.end(), re, -1), std::sregex_token_iterator()};
+//}
+
+std::vector<std::string> split_str(const std::string& str, int delimiter(int))
+{
+    std::vector<std::string> result;
+
+    const auto  it_end  = str.end();
+    auto        it      = str.begin();
+
+    while (it != it_end)
+    {
+        // Find start of next word
+        it = std::find_if_not(it, it_end, delimiter);
+
+        if (it == it_end)
+        {
+            // End of string reached
+            break;
+        }
+
+        // Find end of word
+        auto word_end_it = std::find_if(it, it_end, delimiter);
+
+        result.push_back(std::string(it, word_end_it));
+        it = word_end_it;
+    }
+    return result;
+}
 
 std::string to_str(const int IN)
 {

@@ -469,7 +469,12 @@ void get_cmd(std::string& out, const std::string& msg)
             {
             case SDL_WINDOWEVENT_FOCUS_GAINED:
             case SDL_WINDOWEVENT_RESTORED:
-                // TODO: Draw
+                break;
+
+            case SDL_WINDOWEVENT_RESIZED:
+                int new_w, new_h;
+                SDL_GetWindowSize(sdl_window_, &new_w, &new_h);
+                SDL_SetWindowSize(sdl_window_, std::max(new_w, MIN_WINDOW_W), std::max(new_h, MIN_WINDOW_H));
                 break;
 
             default:

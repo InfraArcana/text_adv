@@ -4,7 +4,7 @@
 
 std::string Room::get_descr()
 {
-    return "You are in a room.";
+    return "You're in a room.";
 }
 
 namespace map
