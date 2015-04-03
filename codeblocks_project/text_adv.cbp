@@ -88,6 +88,8 @@
 		<Unit filename="../src/main.cpp" />
 		<Unit filename="../src/map.cpp" />
 		<Unit filename="../src/map.hpp" />
+		<Unit filename="../src/parsers.cpp" />
+		<Unit filename="../src/parsers.hpp" />
 		<Unit filename="../src/utils.cpp" />
 		<Unit filename="../src/utils.hpp" />
 		<Extensions>

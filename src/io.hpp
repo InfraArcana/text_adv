@@ -7,7 +7,7 @@
 
 #include "cmn_types.hpp"
 
-enum Allow_wrap_text {no, yes};
+enum Allow_Wrap_Text {no, yes};
 
 namespace io
 {
@@ -25,7 +25,7 @@ void sleep(const Uint32 DURATION);
 
 Rect draw_text(const std::string& str, const Pos& pos, const Clr& clr,
                Vertical_dir dir = Vertical_dir::down,
-               Allow_wrap_text allow_wrap = Allow_wrap_text::no);
+               Allow_Wrap_Text allow_wrap = Allow_Wrap_Text::no);
 
 //void draw_text(const std::string& str, const Pos& pos, const Clr& clr);
 

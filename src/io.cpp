@@ -240,7 +240,7 @@ void clear_screen()
     }
 }
 
-Rect draw_text(const std::string& str, const Pos& pos, const Clr& clr, Vertical_dir dir, Allow_wrap_text allow_wrap)
+Rect draw_text(const std::string& str, const Pos& pos, const Clr& clr, Vertical_dir dir, Allow_Wrap_Text allow_wrap)
 {
     if (!is_inited_)
     {
@@ -254,7 +254,7 @@ Rect draw_text(const std::string& str, const Pos& pos, const Clr& clr, Vertical_
 
     SDL_Surface* font_srf = nullptr;
 
-    if (allow_wrap == Allow_wrap_text::yes)
+    if (allow_wrap == Allow_Wrap_Text::yes)
     {
         font_srf = TTF_RenderText_Blended_Wrapped(font_, str.c_str(), clr, window_w);
     }
@@ -410,21 +410,17 @@ void get_cmd(std::string& out, const std::string& msg)
         int window_w, window_h;
         SDL_GetWindowSize(sdl_window_, &window_w, &window_h);
 
-//        const int INFO_SEPARATOR_LINE_Y = font_h_ + 1;
-//
-//        draw_line({0, INFO_SEPARATOR_LINE_Y, window_w, INFO_SEPARATOR_LINE_Y});
-
         Pos text_pos(0, window_h - 1);
 
         const std::string prompt_str = ">";
 
         const std::string cmd_render_str = prompt_str + out;
 
-        Rect msg_rect = draw_text(cmd_render_str, text_pos, clr_black, Vertical_dir::up, Allow_wrap_text::no);
+        Rect msg_rect = draw_text(cmd_render_str, text_pos, clr_black, Vertical_dir::up, Allow_Wrap_Text::no);
 
-//        const int SEPARATOR_LINE_Y = msg_rect.p0.y - 1;
-//
-//        draw_line({0, SEPARATOR_LINE_Y, window_w, SEPARATOR_LINE_Y});
+        const int SEPARATOR_LINE_Y = msg_rect.p0.y - 1;
+
+        draw_line({0, SEPARATOR_LINE_Y, window_w, SEPARATOR_LINE_Y});
 
         const Uint32 CURSOR_PERIOD = 1000;
 
@@ -444,7 +440,7 @@ void get_cmd(std::string& out, const std::string& msg)
                 text_pos.y -= font_h_;
             }
 
-            msg_rect = draw_text(*it, text_pos, clr_black, Vertical_dir::up, Allow_wrap_text::yes);
+            msg_rect = draw_text(*it, text_pos, clr_black, Vertical_dir::up, Allow_Wrap_Text::yes);
 
             if (msg_rect.p0.y < 0)
             {

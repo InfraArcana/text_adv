@@ -1,117 +1,47 @@
 #include "game.hpp"
 
-#include <string>
-#include <vector>
+#include <algorithm>
+#include <memory>
 
 #include "init.hpp"
 #include "io.hpp"
+#include "parsers.hpp"
 #include "map.hpp"
 #include "utils.hpp"
 
-enum class Quit_game {no, yes};
-
 namespace game
 {
+
+Quit_Game quit_game = Quit_Game::no;
 
 namespace
 {
 
 std::string msg_ = "";
 
-void add_msg(const std::string& msg)
+std::vector< std::unique_ptr<Cmd_Parser> > cmd_parsers;
+
+void handle_cmd(const std::string& cmd_str)
 {
-    if (!msg.empty())
+    std::vector<std::string> tokenized_cmd = utils::split_str(cmd_str);
+
+    const std::string first = tokenized_cmd[0];
+
+    for (const auto& parser : cmd_parsers)
     {
-        msg_ += "\n";
-    }
+        const std::vector<std::string> trigger_verbs = parser->get_trigger_verbs();
 
-    msg_ += msg;
-}
-
-void handle_look_cmd(const std::vector<std::string>& cmd)
-{
-    if (cmd.size() == 1)
-    {
-        add_msg(map::player->get_room()->get_descr());
-    }
-}
-
-void handle_go_cmd(const std::vector<std::string>& cmd)
-{
-    Dir dir = Dir::END;
-
-    if (cmd.size() == 1)
-    {
-        add_msg("Go where?");
-    }
-    else if (cmd.size() == 2)
-    {
-        const std::string second = cmd[1];
-
-        if (second == "east")
+        if (std::find(begin(trigger_verbs), end(trigger_verbs), first) != end(trigger_verbs))
         {
-            dir = Dir::right;
+            parser->handle_cmd(tokenized_cmd);
+            break;
         }
-        else if (second == "north")
-        {
-            dir = Dir::up;
-        }
-        else if (second == "west")
-        {
-            dir = Dir::left;
-        }
-        else if (second == "south")
-        {
-            dir = Dir::down;
-        }
-
-        if (dir != Dir::END)
-        {
-            const Pos& player_pos = map::player->get_pos();
-
-            const Pos new_pos = player_pos + dir_utils::get_offset(dir);
-
-            Room* new_room = utils::is_in_map(new_pos) ? map::rooms[new_pos.x][new_pos.y].get() : nullptr;
-
-            if (new_room)
-            {
-                map::player->move(dir);
-                add_msg(map::player->get_room()->get_descr());
-            }
-            else
-            {
-                add_msg("You see no passage that way.");
-            }
-        }
-    }
-}
-
-Quit_game handle_cmd(const std::string& cmd_str)
-{
-    std::vector<std::string> cmd = utils::split_str(cmd_str);
-
-    const std::string first = cmd[0];
-
-    if (cmd.size() == 1 && (first == "exit" || first == "quit" || first == "q"))
-    {
-        add_msg("Bye!");
-        return Quit_game::yes;
-    }
-    else if (first == "look")
-    {
-        handle_look_cmd(cmd);
-    }
-    else if (first == "go" || first == "walk")
-    {
-        handle_go_cmd(cmd);
     }
 
     if (msg_.empty())
     {
-        add_msg("That's not something I understand.");
+        add_msg("Sorry, that's not something I understand.");
     }
-
-    return Quit_game::no;
 }
 
 } // namespace
@@ -122,14 +52,22 @@ void init()
 
     cleanup();
 
+    quit_game = Quit_Game::no;
+
+    msg_ = "";
+
+    // Set up parsers
+    cmd_parsers.clear();
+    cmd_parsers.push_back(std::unique_ptr<Cmd_Parser>(new Quit_Cmd_Parser));
+    cmd_parsers.push_back(std::unique_ptr<Cmd_Parser>(new Go_Cmd_Parser));
+    cmd_parsers.push_back(std::unique_ptr<Cmd_Parser>(new Look_Cmd_Parser));
+
     TRACE_FUNC_END;
 }
 
 void cleanup()
 {
     TRACE_FUNC_BEGIN;
-
-    msg_ = "";
 
     TRACE_FUNC_END;
 }
@@ -146,13 +84,7 @@ void run()
 
     add_msg(map::player->get_room()->get_descr());
 
-    Quit_game quit_game = Quit_game::no;
-
-    //-----------------------------
-    //
-    //-----------------------------
-
-    while (quit_game == Quit_game::no)
+    while (quit_game == Quit_Game::no)
     {
         // Read input, draw message history and draw the command being entered
         io::get_cmd(user_cmd_str, msg_);
@@ -160,11 +92,21 @@ void run()
         msg_ = "";
 
         // Handle the user command, and build a new message
-        quit_game = handle_cmd(user_cmd_str);
+        handle_cmd(user_cmd_str);
         assert(!msg_.empty());
     }
 
     TRACE_FUNC_END;
+}
+
+void add_msg(const std::string& msg)
+{
+    if (!msg.empty())
+    {
+        msg_ += "\n";
+    }
+
+    msg_ += msg;
 }
 
 } // game
